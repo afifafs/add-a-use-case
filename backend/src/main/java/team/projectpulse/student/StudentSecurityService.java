@@ -1,6 +1,7 @@
 package team.projectpulse.student;
 
 import team.projectpulse.system.UserUtils;
+import team.projectpulse.section.SectionSecurityService;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -19,11 +20,13 @@ public class StudentSecurityService {
 
     private final StudentRepository studentRepository;
     private final UserUtils userUtils;
+    private final SectionSecurityService sectionSecurityService;
 
 
-    public StudentSecurityService(StudentRepository studentRepository, UserUtils userUtils) {
+    public StudentSecurityService(StudentRepository studentRepository, UserUtils userUtils, SectionSecurityService sectionSecurityService) {
         this.studentRepository = studentRepository;
         this.userUtils = userUtils;
+        this.sectionSecurityService = sectionSecurityService;
     }
 
     public boolean isStudentSelf(Integer studentId) {
@@ -45,6 +48,20 @@ public class StudentSecurityService {
         }
         return student.getSection().getInstructors().stream()
                 .anyMatch(instructor -> instructor.getId().equals(instructorIdFromJwt));
+    }
+
+    /**
+     * Whether the caller owns the student's course or is assigned to the student's section.
+     * Missing students fail closed so the route does not disclose whether the id exists.
+     */
+    public boolean canManageLifecycle(Integer studentId) {
+        Student student = this.studentRepository.findById(studentId).orElse(null);
+        if (student == null || student.getSection() == null) {
+            return false;
+        }
+        Integer sectionId = student.getSection().getSectionId();
+        return this.sectionSecurityService.isSectionOwner(sectionId)
+                || this.sectionSecurityService.isSectionInstructor(sectionId);
     }
 
 }

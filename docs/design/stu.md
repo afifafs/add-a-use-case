@@ -33,6 +33,7 @@ classDiagram
     }
     class StudentRepository {
       +findById(studentId)
+      +findByIdInLifecycleScope(studentId, callerId)
       +save(student)
     }
     class ActiveAccountJwtAuthenticationConverter {
@@ -133,7 +134,7 @@ sequenceDiagram
 
 | Endpoint | Caller (who may) | Request | Success | Errors, by extension |
 |---|---|---|---|---|
-| `POST /api/v1/students/{studentId}/deactivate` | Course admin owning the student's course or instructor assigned to the student's course section | Path `studentId`; no body | `200`, `Result` with the updated student DTO | 1a: `403`; 3a: `409`; missing student: `404`; invalid path: `400` |
+| `POST /api/v1/students/{studentId}/deactivate` | Course admin owning the student's course or instructor assigned to the student's course section | Path `studentId`; no body | `200`, `Result` with the updated student DTO | 1a: `403`; missing, out-of-scope, or malformed student id: `403` (the route guard fails closed); 3a: `409` |
 
 The warning and cancellation are client-side; Cancel sends no request.
 
@@ -153,6 +154,7 @@ No schema delta. Deactivation changes only the existing `Student.enabled` field.
 ## Reuse & cross-cutting
 
 - Reuse the existing student entity, repository, student API module, team and section relationships, JWT roles, `UserRepository`, and `StudentSecurityService`.
+- Check authorization twice: `StudentLifecycleAuthorizationManager` permits the course admin or assigned section instructor; the service then loads through `StudentRepository.findByIdInLifecycleScope(studentId, callerId)`. An unknown or out-of-scope id is refused by the route guard as `403`, matching the architecture's fail-closed rule.
 - Extend `FR-SEC-active-account` enforcement at the JWT authentication boundary. The check reads the current `enabled` value rather than trusting the status captured in an earlier token.
 - Leave peer-evaluation creation, section reports, and owed-item calculation unchanged; tests pin their current behavior for an inactive team member.
 

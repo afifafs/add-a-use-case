@@ -6,6 +6,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
+import team.projectpulse.instructor.Instructor;
 import team.projectpulse.student.Student;
 import team.projectpulse.user.UserRepository;
 
@@ -45,6 +46,15 @@ class ActiveAccountJwtAuthenticationConverterTest {
     void rejectsAnAccountDisabledAfterItsTokenWasIssued() {
         Student student = new Student("student", "First", "Last", "student@example.edu", "encoded", false, "student");
         given(this.userRepository.findById(7)).willReturn(Optional.of(student));
+
+        assertThatThrownBy(() -> new ActiveAccountJwtAuthenticationConverter(this.userRepository).convert(tokenFor(7)))
+                .isInstanceOf(InvalidBearerTokenException.class);
+    }
+
+    @Test
+    void rejectsDisabledInstructorAccountsUnderTheSharedAccountRule() {
+        Instructor instructor = new Instructor("instructor", "First", "Last", "instructor@example.edu", "encoded", false, "instructor");
+        given(this.userRepository.findById(7)).willReturn(Optional.of(instructor));
 
         assertThatThrownBy(() -> new ActiveAccountJwtAuthenticationConverter(this.userRepository).convert(tokenFor(7)))
                 .isInstanceOf(InvalidBearerTokenException.class);

@@ -62,7 +62,7 @@ classDiagram
     ActiveAccountJwtAuthenticationConverter --> UserRepository : current enabled state
 ```
 
-`Students.vue` and its existing edit dialog host the action; `apis/student` adds the API call. `StudentController`, `StudentService`, `StudentSecurityService`, `StudentRepository`, `Student`, and `SecurityConfiguration` are reused and extended. A new `StudentAlreadyDeactivatedException`, its conflict mapping in `ExceptionHandlerAdvice`, a `StudentLifecycleAuthorizationManager`, and an `ActiveAccountJwtAuthenticationConverter` provide the explicit error and security behavior. There is no schema change.
+`Students.vue` adds the row action and confirmation dialog; `apis/student` adds the API call. The existing edit form's status control cannot deactivate an active student; it remains available to enable an already-deactivated student, preserving the existing reactivation path without designing or building UC-STU-reactivate-student. `StudentController`, `StudentService`, `StudentSecurityService`, `StudentRepository`, `Student`, and `SecurityConfiguration` are reused and extended. A new `StudentAlreadyDeactivatedException`, its conflict mapping in `ExceptionHandlerAdvice`, a `StudentLifecycleAuthorizationManager`, and an `ActiveAccountJwtAuthenticationConverter` provide the explicit error and security behavior. There is no schema change.
 
 ## Sequence
 
@@ -140,6 +140,7 @@ The warning and cancellation are client-side; Cancel sends no request.
 ## Key decisions
 
 - Keep the student assigned to her current team. Removing her would change team membership and future report behavior; retaining membership preserves the record without restoring access.
+- Make the dedicated row action the UI path that moves an active student to deactivated. The edit form's existing status control is disabled for active students but still lets an instructor re-enable an inactive one; removing that latter path would unnecessarily change the separate, out-of-scope reactivation flow.
 - Keep the student in the section peer-evaluation report for every requested week, including weeks after deactivation, and allow active teammates to submit evaluations of her. The existing evaluator/evaluatee same-team check already permits this; `BR-submission-owed` excludes an inactive teammate from the set an active evaluator must rate. Hiding her or prohibiting ratings would discard useful team history and is rejected.
 - Check enabled status whenever a JWT request is authenticated. Login-time validation alone leaves a previously issued token usable after deactivation, contrary to FR-SEC-active-account; a database-backed JWT converter rejects it on the next request. The same check applies to disabled instructors because the FR covers both account types.
 - Restrict deactivation to the course admin who owns the student's course or an instructor assigned to her course section, as BR-student-lifecycle requires. A student may not deactivate herself through this administrative action.
@@ -160,6 +161,7 @@ No schema delta. Deactivation changes only the existing `Student.enabled` field.
 | Use case, flow | Level (unit / integration) | Asserts |
 |---|---|---|
 | Main success scenario (steps 1–7) | Backend integration + Cypress | An authorized instructor deactivates an active student; the dedicated UI action shows the warning, confirmation sends the request, the row updates, and the stored enabled flag becomes false. |
+| Main success scenario — dedicated action boundary | Cypress | An active student's legacy status control is disabled; only the dedicated row action starts deactivation. |
 | Main success scenario — retained records (Associated Information) | Backend integration | Team assignment, prior weekly activity reports, and prior peer evaluations remain after deactivation. |
 | Extension 1a — actor is neither the course admin nor an assigned instructor | Backend integration | The request is refused with 403 and the student's account remains active. |
 | Extension 3a — account is already deactivated | Backend integration | A repeated request returns 409 and does not alter team membership or records. |

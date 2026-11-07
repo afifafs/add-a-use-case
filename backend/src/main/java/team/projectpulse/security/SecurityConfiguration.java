@@ -27,9 +27,9 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 import team.projectpulse.security.authorizationmanagers.*;
+import team.projectpulse.user.UserRepository;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -347,24 +347,8 @@ public class SecurityConfiguration {
     }
 
     @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter = new JwtGrantedAuthoritiesConverter();
-
-        /*
-        Let’s say that that your authorization server communicates authorities in a custom claim called "authorities".
-        In that case, you can configure the claim that JwtAuthenticationConverter should inspect, like so:
-         */
-        jwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("authorities");
-
-        /*
-        You can also configure the authority prefix to be different as well. The default one is "SCOPE_".
-        In this project, you need to change it to empty, that is, no prefix!
-         */
-        jwtGrantedAuthoritiesConverter.setAuthorityPrefix("");
-
-        JwtAuthenticationConverter jwtAuthenticationConverter = new JwtAuthenticationConverter();
-        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(jwtGrantedAuthoritiesConverter);
-        return jwtAuthenticationConverter;
+    public JwtAuthenticationConverter jwtAuthenticationConverter(UserRepository userRepository) {
+        return new ActiveAccountJwtAuthenticationConverter(userRepository);
     }
 
     /**

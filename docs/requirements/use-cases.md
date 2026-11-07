@@ -1487,7 +1487,7 @@ Details:
 
 **Associated Information:**
 - Consequence of the deactivation: The student will no longer be able to log in or submit weekly activity reports and peer evaluations, but the student's account and her previously submitted work are kept in the system. Deactivation will NOT remove the student from the system, and the account can be reactivated in the future (UC-STU-reactivate-student: Reactivate a student). This is distinct from deletion (UC-STU-delete-student: Delete a student), which is a physical, unrecoverable delete. The course admin or instructor shall be able to cancel the use case at any time prior to submitting it.
-- Deactivation leaves the student's current team assignment intact. Her historic weekly activity reports and peer evaluations remain available in the section's reports. Teammates whose accounts remain active may still submit peer evaluations of her; because she is inactive, they are not required to evaluate her (BR-submission-owed).
+- Deactivation leaves the student's current team assignment intact. Her historic weekly activity reports and peer evaluations remain available in the section's reports. The section's peer-evaluation report continues to include her for every requested week, including weeks after deactivation. Teammates whose accounts remain active may still submit peer evaluations of her; because she is inactive, they are not required to evaluate her (BR-submission-owed).
 - For a student who was already authenticated, the request-time access denial in extension 6a applies to every protected resource request until reactivation (FR-SEC-active-account).
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-reactivate-student: Reactivate a student

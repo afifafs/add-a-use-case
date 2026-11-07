@@ -6,6 +6,8 @@ import team.projectpulse.activity.ActivityRepository;
 import team.projectpulse.evaluation.PeerEvaluationRepository;
 import team.projectpulse.evaluation.dto.PeerEvaluationDto;
 import team.projectpulse.evaluation.dto.RatingDto;
+import team.projectpulse.notification.SubmittableItem;
+import team.projectpulse.notification.SubmissionStatusService;
 import team.projectpulse.system.StatusCode;
 import org.hamcrest.Matchers;
 import org.json.JSONObject;
@@ -50,6 +52,9 @@ class StudentIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     PeerEvaluationRepository peerEvaluationRepository;
+
+    @Autowired
+    SubmissionStatusService submissionStatusService;
 
     String adminToken;
 
@@ -200,10 +205,16 @@ class StudentIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.flag").value(true))
                 .andExpect(jsonPath("$.data.evaluateeId").value(4));
 
-        this.mockMvc.perform(get(this.baseUrl + "/evaluations/sections/2/week/2023-W31")
+        this.mockMvc.perform(get(this.baseUrl + "/evaluations/sections/2/week/2023-W33")
                         .accept(MediaType.APPLICATION_JSON)
                         .header(HttpHeaders.AUTHORIZATION, this.adminToken))
+                .andExpect(jsonPath("$.data.week").value("2023-W33"))
                 .andExpect(jsonPath("$.data.peerEvaluationAverages[?(@.studentId == 4)]").exists());
+
+        org.assertj.core.api.Assertions.assertThat(this.submissionStatusService
+                        .findOwing(2, SubmittableItem.PEER_EVALUATION, "2023-W33").stream()
+                        .map(Student::getId))
+                .doesNotContain(5);
 
         this.mockMvc.perform(get(this.baseUrl + "/students/4")
                         .accept(MediaType.APPLICATION_JSON)

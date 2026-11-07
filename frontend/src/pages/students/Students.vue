@@ -39,15 +39,26 @@
           <el-tag type="danger" v-else>Disabled</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="Operations" width="120">
+      <el-table-column label="Operations" width="210">
         <template #default="{ row }">
           <el-button
             icon="Edit"
             circle
             plain
             type="primary"
+            :data-cy="`edit-student-${row.id}`"
             @click.stop="showEditStudentDialog(row)"
           ></el-button>
+          <el-button
+            v-if="row.enabled"
+            size="small"
+            type="danger"
+            plain
+            :data-cy="`deactivate-student-${row.id}`"
+            @click.stop="showDeactivationWarning(row)"
+          >
+            Deactivate
+          </el-button>
         </template>
       </el-table-column>
       <template #empty>
@@ -73,12 +84,36 @@
         @close-dialog="closeDialog"
       ></EditStudentForm>
     </el-dialog>
+    <el-dialog
+      v-model="deactivationDialogVisible"
+      title="Deactivate student?"
+      width="460px"
+      :close-on-click-modal="false"
+    >
+      <div data-cy="deactivation-dialog">
+        <p v-if="studentBeingDeactivated">
+          Deactivating {{ studentBeingDeactivated.firstName }} {{ studentBeingDeactivated.lastName }} will stop her from logging in and submitting work.
+        </p>
+        <p>She will stay on her team and remain in past reports and evaluations. Teammates may still evaluate her, but are not required to.</p>
+      </div>
+      <template #footer>
+        <el-button data-cy="deactivation-cancel" @click="deactivationDialogVisible = false">Cancel</el-button>
+        <el-button
+          data-cy="deactivation-confirm"
+          type="danger"
+          :loading="deactivationLoading"
+          @click="confirmDeactivation"
+        >
+          Deactivate student
+        </el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { searchStudents } from '@/apis/student'
+import { deactivateStudent, searchStudents } from '@/apis/student'
 import type {
   SearchStudentByCriteriaResponse,
   Student,
@@ -153,6 +188,9 @@ function handlePageSizeChange(newSize: number) {
 const dialogVisible = ref(false)
 
 const studentBeingEditedId = ref<number>() // ID of the artifact being edited, it will be passed to the EditArtifactForm component as a prop
+const studentBeingDeactivated = ref<Student | null>(null)
+const deactivationDialogVisible = ref(false)
+const deactivationLoading = ref(false)
 
 function showEditStudentDialog(student: Student) {
   dialogVisible.value = true
@@ -162,6 +200,26 @@ function showEditStudentDialog(student: Student) {
 function closeDialog() {
   dialogVisible.value = false
   loadStudents()
+}
+
+function showDeactivationWarning(student: Student) {
+  studentBeingDeactivated.value = student
+  deactivationDialogVisible.value = true
+}
+
+async function confirmDeactivation() {
+  const studentId = studentBeingDeactivated.value?.id
+  if (!studentId) return
+
+  deactivationLoading.value = true
+  try {
+    await deactivateStudent(studentId)
+    ElMessage.success('Student deactivated successfully')
+    deactivationDialogVisible.value = false
+    await loadStudents()
+  } finally {
+    deactivationLoading.value = false
+  }
 }
 
 import { useRouter } from 'vue-router'

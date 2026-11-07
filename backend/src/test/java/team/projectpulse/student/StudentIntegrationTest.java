@@ -2,6 +2,10 @@ package team.projectpulse.student;
 
 import tools.jackson.databind.json.JsonMapper;
 import team.projectpulse.AbstractIntegrationTest;
+import team.projectpulse.activity.ActivityRepository;
+import team.projectpulse.evaluation.PeerEvaluationRepository;
+import team.projectpulse.evaluation.dto.PeerEvaluationDto;
+import team.projectpulse.evaluation.dto.RatingDto;
 import team.projectpulse.system.StatusCode;
 import org.hamcrest.Matchers;
 import org.json.JSONObject;
@@ -20,8 +24,10 @@ import org.springframework.util.MultiValueMap;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -35,6 +41,15 @@ class StudentIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     JsonMapper jsonMapper;
+
+    @Autowired
+    StudentRepository studentRepository;
+
+    @Autowired
+    ActivityRepository activityRepository;
+
+    @Autowired
+    PeerEvaluationRepository peerEvaluationRepository;
 
     String adminToken;
 
@@ -145,6 +160,86 @@ class StudentIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.code").value(StatusCode.FORBIDDEN))
                 .andExpect(jsonPath("$.message").value("No permission."))
                 .andExpect(jsonPath("$.data").value("Access Denied"));
+    }
+
+    @Test
+    void assignedInstructorDeactivatesStudentAndKeepsTeamHistoryWhileRevokingOldToken() throws Exception {
+        var previousActivityReportStudents = this.activityRepository.findReportingStudentIds(2, "2023-W32");
+        var previousEvaluations = this.peerEvaluationRepository.findByWeekAndEvaluateeId("2023-W31", 4);
+        assertThat(previousActivityReportStudents).contains(4);
+        assertThat(previousEvaluations).isNotEmpty();
+        assertThat(this.studentRepository.findById(4).orElseThrow().getTeam().getTeamId()).isEqualTo(1);
+
+        this.mockMvc.perform(post(this.baseUrl + "/students/4/deactivate")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, this.instructorBillToken))
+                .andExpect(jsonPath("$.flag").value(true))
+                .andExpect(jsonPath("$.code").value(StatusCode.SUCCESS))
+                .andExpect(jsonPath("$.data.enabled").value(false))
+                .andExpect(jsonPath("$.data.teamId").value(1));
+
+        Student deactivated = this.studentRepository.findById(4).orElseThrow();
+        org.assertj.core.api.Assertions.assertThat(deactivated.isEnabled()).isFalse();
+        org.assertj.core.api.Assertions.assertThat(deactivated.getTeam().getTeamId()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(this.activityRepository.findReportingStudentIds(2, "2023-W32")).contains(4);
+        org.assertj.core.api.Assertions.assertThat(this.peerEvaluationRepository.findByWeekAndEvaluateeId("2023-W31", 4))
+                .hasSameSizeAs(previousEvaluations);
+
+        // Replace Eric's seeded week 33 evaluation to prove the service still accepts a teammate rating an inactive student.
+        this.peerEvaluationRepository.findByWeekAndEvaluatorIdAndEvaluateeId("2023-W33", 5, 4)
+                .ifPresent(this.peerEvaluationRepository::delete);
+        this.peerEvaluationRepository.flush();
+        PeerEvaluationDto evaluation = new PeerEvaluationDto(null, "2023-W33", 5, "Eric Hudson", 4, "John Smith",
+                List.of(new RatingDto(null, 1, 8.0), new RatingDto(null, 2, 8.0), new RatingDto(null, 3, 8.0),
+                        new RatingDto(null, 4, 8.0), new RatingDto(null, 5, 8.0), new RatingDto(null, 6, 8.0)),
+                48.0, "Teammate evaluation", "", null, null);
+        this.mockMvc.perform(post(this.baseUrl + "/evaluations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(this.jsonMapper.writeValueAsString(evaluation))
+                        .header(HttpHeaders.AUTHORIZATION, this.studentEricToken))
+                .andExpect(jsonPath("$.flag").value(true))
+                .andExpect(jsonPath("$.data.evaluateeId").value(4));
+
+        this.mockMvc.perform(get(this.baseUrl + "/evaluations/sections/2/week/2023-W31")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, this.adminToken))
+                .andExpect(jsonPath("$.data.peerEvaluationAverages[?(@.studentId == 4)]").exists());
+
+        this.mockMvc.perform(get(this.baseUrl + "/students/4")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, this.studentJohnToken))
+                .andExpect(jsonPath("$.code").value(StatusCode.UNAUTHORIZED));
+    }
+
+    @Test
+    void onlyTheStudentsCourseAdminOrAssignedInstructorMayDeactivateHer() throws Exception {
+        this.mockMvc.perform(post(this.baseUrl + "/students/4/deactivate")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, this.adminTimToken))
+                .andExpect(jsonPath("$.flag").value(false))
+                .andExpect(jsonPath("$.code").value(StatusCode.FORBIDDEN));
+        org.assertj.core.api.Assertions.assertThat(this.studentRepository.findById(4).orElseThrow().isEnabled()).isTrue();
+
+        this.mockMvc.perform(post(this.baseUrl + "/students/4/deactivate")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, this.studentJohnToken))
+                .andExpect(jsonPath("$.flag").value(false))
+                .andExpect(jsonPath("$.code").value(StatusCode.FORBIDDEN));
+        org.assertj.core.api.Assertions.assertThat(this.studentRepository.findById(4).orElseThrow().isEnabled()).isTrue();
+    }
+
+    @Test
+    void courseAdminCanDeactivateAStudentAndARepeatRequestConflicts() throws Exception {
+        this.mockMvc.perform(post(this.baseUrl + "/students/4/deactivate")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, this.adminToken))
+                .andExpect(jsonPath("$.code").value(StatusCode.SUCCESS));
+
+        this.mockMvc.perform(post(this.baseUrl + "/students/4/deactivate")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .header(HttpHeaders.AUTHORIZATION, this.adminToken))
+                .andExpect(jsonPath("$.flag").value(false))
+                .andExpect(jsonPath("$.code").value(StatusCode.CONFLICT));
     }
 
     @Test

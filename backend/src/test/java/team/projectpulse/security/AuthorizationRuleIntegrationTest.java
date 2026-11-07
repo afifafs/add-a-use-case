@@ -93,6 +93,10 @@ class AuthorizationRuleIntegrationTest extends AbstractIntegrationTest {
         this.mockMvc.perform(get(this.baseUrl + "/students/" + NO_SUCH_ID).accept(MediaType.APPLICATION_JSON).header(HttpHeaders.AUTHORIZATION, this.adminBingyangToken))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(StatusCode.FORBIDDEN));
+
+        this.mockMvc.perform(post(this.baseUrl + "/students/" + NO_SUCH_ID + "/deactivate").accept(MediaType.APPLICATION_JSON).header(HttpHeaders.AUTHORIZATION, this.adminBingyangToken))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(StatusCode.FORBIDDEN));
     }
 
     @Test

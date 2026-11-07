@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import team.projectpulse.instructor.Instructor;
 import team.projectpulse.section.Section;
 import team.projectpulse.section.SectionRepository;
+import team.projectpulse.team.Team;
 import team.projectpulse.system.UserUtils;
 import team.projectpulse.user.MyUserPrincipal;
 import team.projectpulse.user.userinvitation.UserInvitationService;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -190,4 +192,31 @@ class StudentServiceTest {
         verify(this.studentRepository, times(1)).deleteById(1);
     }
 
+    @Test
+    void deactivateStudentDisablesTheAccountAndRetainsItsTeam() {
+        Student john = this.students.get(0);
+        Team team = new Team("Team1", "description", "https://example.edu/team1");
+        john.setTeam(team);
+        given(this.userUtils.getUserId()).willReturn(9);
+        given(this.studentRepository.findByIdInLifecycleScope(4, 9)).willReturn(Optional.of(john));
+        given(this.studentRepository.save(john)).willReturn(john);
+
+        Student result = this.studentService.deactivateStudent(4);
+
+        assertThat(result.isEnabled()).isFalse();
+        assertThat(result.getTeam()).isSameAs(team);
+        verify(this.studentRepository).save(john);
+    }
+
+    @Test
+    void deactivateStudentRejectsARepeatRequestWithoutSaving() {
+        Student john = this.students.get(0);
+        john.setEnabled(false);
+        given(this.userUtils.getUserId()).willReturn(9);
+        given(this.studentRepository.findByIdInLifecycleScope(4, 9)).willReturn(Optional.of(john));
+
+        assertThatThrownBy(() -> this.studentService.deactivateStudent(4))
+                .isInstanceOf(StudentAlreadyDeactivatedException.class);
+        verify(this.studentRepository, never()).save(any());
+    }
 }

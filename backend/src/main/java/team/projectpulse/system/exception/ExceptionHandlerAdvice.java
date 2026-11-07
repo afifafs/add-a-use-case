@@ -7,6 +7,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 import team.projectpulse.system.Result;
 import team.projectpulse.system.StatusCode;
+import team.projectpulse.student.StudentAlreadyDeactivatedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -36,6 +37,12 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ExceptionHandlerAdvice {
+
+    @ExceptionHandler(StudentAlreadyDeactivatedException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    Result handleStudentAlreadyDeactivated(StudentAlreadyDeactivatedException ex) {
+        return new Result(false, StatusCode.CONFLICT, ex.getMessage());
+    }
 
     @ExceptionHandler(ObjectNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

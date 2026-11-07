@@ -108,21 +108,37 @@ public class StudentService {
         Student oldStudent = this.studentRepository.findById(studentId)
                 .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
 
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        boolean instructor = authentication.getAuthorities().stream()
+                .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_instructor"));
+        if (instructor && oldStudent.isEnabled() && !update.isEnabled()) {
+            throw new IllegalArgumentException("Use the dedicated deactivation action to disable an active student.");
+        }
+
         // If the user is not an admin, then the user can only update her username, first rubricName, last rubricName, and email
         oldStudent.setUsername(update.getUsername());
         oldStudent.setFirstName(update.getFirstName());
         oldStudent.setLastName(update.getLastName());
         oldStudent.setEmail(update.getEmail());
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
         // If the user is an admin, then the user can update all the fields
-        if (authentication.getAuthorities().stream().anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_instructor"))) {
+        if (instructor) {
             oldStudent.setEnabled(update.isEnabled());
 //            oldStudent.setRoles(update.getRoles());
         }
 
         return this.studentRepository.save(oldStudent);
+    }
+
+    public Student deactivateStudent(Integer studentId) {
+        Integer callerId = this.userUtils.getUserId();
+        Student student = this.studentRepository.findByIdInLifecycleScope(studentId, callerId)
+                .orElseThrow(() -> new ObjectNotFoundException("student", studentId));
+        if (!student.isEnabled()) {
+            throw new StudentAlreadyDeactivatedException(studentId);
+        }
+        student.setEnabled(false);
+        return this.studentRepository.save(student);
     }
 
     public void deleteStudent(Integer studentId) {

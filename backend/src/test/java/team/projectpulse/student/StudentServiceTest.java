@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterEach;
 import team.projectpulse.instructor.Instructor;
 import team.projectpulse.section.Section;
 import team.projectpulse.section.SectionRepository;
+import team.projectpulse.team.Team;
 import team.projectpulse.system.UserUtils;
 import team.projectpulse.user.MyUserPrincipal;
 import team.projectpulse.user.userinvitation.UserInvitationService;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -153,8 +155,10 @@ class StudentServiceTest {
     @Test
     void testInstructorUpdatesStudent() {
         // Given
-        Student update = new Student("john", "John (updated)", "Smith (updated)", "j.smith@abc.edu (updated)", "", false, "admin student");
-        given(this.studentRepository.findById(1)).willReturn(Optional.of(this.students.get(0)));
+        Student update = new Student("john", "John (updated)", "Smith (updated)", "j.smith@abc.edu (updated)", "", true, "admin student");
+        Student deactivatedJohn = this.students.get(0);
+        deactivatedJohn.setEnabled(false);
+        given(this.studentRepository.findById(1)).willReturn(Optional.of(deactivatedJohn));
         given(this.studentRepository.save(any(Student.class))).willReturn(this.students.get(0));
 
         Instructor instructor = new Instructor();
@@ -178,6 +182,26 @@ class StudentServiceTest {
     }
 
     @Test
+    void testInstructorCannotDeactivateThroughGenericStudentUpdate() {
+        Student activeJohn = this.students.get(0);
+        Student update = new Student("john", "John", "Smith", "j.smith@abc.edu", "", false, "student");
+        given(this.studentRepository.findById(1)).willReturn(Optional.of(activeJohn));
+
+        Instructor instructor = new Instructor();
+        instructor.setRoles("instructor");
+        MyUserPrincipal principal = new MyUserPrincipal(instructor);
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
+        SecurityContextHolder.setContext(context);
+
+        assertThatThrownBy(() -> this.studentService.updateStudent(1, update))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("dedicated deactivation action");
+        assertThat(activeJohn.isEnabled()).isTrue();
+        verify(this.studentRepository, never()).save(any());
+    }
+
+    @Test
     void testDeleteStudent() {
         // Given
         given(this.studentRepository.findById(1)).willReturn(Optional.of(this.students.get(0)));
@@ -190,4 +214,31 @@ class StudentServiceTest {
         verify(this.studentRepository, times(1)).deleteById(1);
     }
 
+    @Test
+    void deactivateStudentDisablesTheAccountAndRetainsItsTeam() {
+        Student john = this.students.get(0);
+        Team team = new Team("Team1", "description", "https://example.edu/team1");
+        john.setTeam(team);
+        given(this.userUtils.getUserId()).willReturn(9);
+        given(this.studentRepository.findByIdInLifecycleScope(4, 9)).willReturn(Optional.of(john));
+        given(this.studentRepository.save(john)).willReturn(john);
+
+        Student result = this.studentService.deactivateStudent(4);
+
+        assertThat(result.isEnabled()).isFalse();
+        assertThat(result.getTeam()).isSameAs(team);
+        verify(this.studentRepository).save(john);
+    }
+
+    @Test
+    void deactivateStudentRejectsARepeatRequestWithoutSaving() {
+        Student john = this.students.get(0);
+        john.setEnabled(false);
+        given(this.userUtils.getUserId()).willReturn(9);
+        given(this.studentRepository.findByIdInLifecycleScope(4, 9)).willReturn(Optional.of(john));
+
+        assertThatThrownBy(() -> this.studentService.deactivateStudent(4))
+                .isInstanceOf(StudentAlreadyDeactivatedException.class);
+        verify(this.studentRepository, never()).save(any());
+    }
 }

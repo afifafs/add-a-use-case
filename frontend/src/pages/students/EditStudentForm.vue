@@ -16,11 +16,15 @@
     <el-form-item label="Status:" prop="enabled">
       <el-switch
         v-model="studentBeingEdited.enabled"
+        :disabled="studentBeingEdited.enabled"
         inline-prompt
         active-text="Enabled"
         inactive-text="Disabled"
         style="--el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949"
       />
+      <el-text v-if="studentBeingEdited.enabled" type="info" size="small">
+        Use the dedicated Deactivate action to disable an active student.
+      </el-text>
     </el-form-item>
     <el-form-item label="First Name:" prop="firstName">
       <el-input v-model="studentBeingEdited.firstName"></el-input>

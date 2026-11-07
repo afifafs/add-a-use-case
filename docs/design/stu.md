@@ -155,6 +155,7 @@ No schema delta. Deactivation changes only the existing `Student.enabled` field.
 
 - Reuse the existing student entity, repository, student API module, team and section relationships, JWT roles, `UserRepository`, and `StudentSecurityService`.
 - Check authorization twice: `StudentLifecycleAuthorizationManager` permits the course admin or assigned section instructor; the service then loads through `StudentRepository.findByIdInLifecycleScope(studentId, callerId)`. An unknown or out-of-scope id is refused by the route guard as `403`, matching the architecture's fail-closed rule.
+- Keep deactivation on its dedicated endpoint: `StudentService.updateStudent` rejects an enabled-to-disabled transition, while the existing edit path can still reactivate an inactive student.
 - Extend `FR-SEC-active-account` enforcement at the JWT authentication boundary. The check reads the current `enabled` value rather than trusting the status captured in an earlier token.
 - Leave peer-evaluation creation, section reports, and owed-item calculation unchanged; tests pin their current behavior for an inactive team member.
 

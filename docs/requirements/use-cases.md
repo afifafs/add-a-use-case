@@ -1473,12 +1473,22 @@ Details:
 7. Use case ends.
 
 **Extensions:**
+- **1a. The course admin or instructor is not authorized to manage this student**
+  - 1a1. The system refuses the request without changing the student's account (BR-student-lifecycle).
+- **3a. The student's account is already deactivated**
+  - 3a1. The system informs the course admin or instructor and ends the use case without changing the account.
+- **4a. The course admin or instructor cancels at the warning**
+  - 4a1. The system ends the use case without changing the student's account.
+- **6a. The student has already authenticated**
+  - 6a1. The system denies the student's next protected resource request while the account remains deactivated, including when it uses a token issued before deactivation (FR-SEC-active-account).
 **Priority:** Low
 **Frequency of Use:** Rare. Occurs occasionally when a student withdraws from a course section.
-**Business Rules:** BR-student-lifecycle
+**Business Rules:** BR-student-lifecycle, BR-submission-owed
 
 **Associated Information:**
 - Consequence of the deactivation: The student will no longer be able to log in or submit weekly activity reports and peer evaluations, but the student's account and her previously submitted work are kept in the system. Deactivation will NOT remove the student from the system, and the account can be reactivated in the future (UC-STU-reactivate-student: Reactivate a student). This is distinct from deletion (UC-STU-delete-student: Delete a student), which is a physical, unrecoverable delete. The course admin or instructor shall be able to cancel the use case at any time prior to submitting it.
+- Deactivation leaves the student's current team assignment intact. Her historic weekly activity reports and peer evaluations remain available in the section's reports. Teammates whose accounts remain active may still submit peer evaluations of her; because she is inactive, they are not required to evaluate her (BR-submission-owed).
+- For a student who was already authenticated, the request-time access denial in extension 6a applies to every protected resource request until reactivation (FR-SEC-active-account).
 
 **Related Use Cases:** UC-STU-delete-student: Delete a student; UC-STU-reactivate-student: Reactivate a student
 **Assumptions:**
